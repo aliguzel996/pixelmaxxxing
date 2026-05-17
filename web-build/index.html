@@ -227,7 +227,7 @@
                 <div class="text-settings-grid">
                   <div class="control-group compact">
                     <label for="text-size">Size (px)</label>
-                    <input id="text-size" type="number" min="8" max="320" value="72" />
+                    <input id="text-size" type="number" min="8" value="72" />
                   </div>
 
                   <div class="control-group compact">
@@ -266,27 +266,6 @@
                     type="file"
                     accept=".ttf,.otf,.woff,.woff2"
                   />
-                </div>
-
-                <div class="grid-inputs duo-grid dense-grid emoji-row">
-                  <div class="control-group compact">
-                    <label for="emoji-picker">Emoji</label>
-                    <div class="emoji-picker-shell">
-                      <div id="emoji-category-tabs" class="emoji-category-tabs" aria-label="Emoji categories"></div>
-                      <div id="emoji-grid" class="emoji-grid" aria-label="Emoji picker"></div>
-                      <select id="emoji-picker" class="visually-hidden"></select>
-                    </div>
-                  </div>
-
-                  <div class="control-group compact emoji-action-group">
-                    <label>&nbsp;</label>
-                    <div class="emoji-action-buttons">
-                      <button id="insert-emoji-into-text-button" class="secondary-button" type="button">
-                        Insert Into Text
-                      </button>
-                      <button id="add-emoji-button" type="button">Add Separate</button>
-                    </div>
-                  </div>
                 </div>
 
                 <p id="text-status" class="selection-status">

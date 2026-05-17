@@ -534,7 +534,7 @@ addTextButton.addEventListener("click", () => {
   addOrUpdateTextOverlay();
 });
 
-addEmojiButton.addEventListener("click", () => {
+addEmojiButton?.addEventListener("click", () => {
   pushAppHistory();
   addEmojiOverlay();
 });
@@ -1522,7 +1522,7 @@ function renderTextLayerList() {
   }
 
   if (!state.textOverlays.length) {
-    textLayerList.innerHTML = '<p class="text-layer-empty">No text or emoji layers yet.</p>';
+    textLayerList.innerHTML = '<p class="text-layer-empty">No text layers yet.</p>';
     return;
   }
 
@@ -1568,7 +1568,7 @@ function syncActiveTextOverlayFromControls() {
     activeText.text = textContentInput.value;
   }
 
-  activeText.size = clampNumber(Number(textSizeInput.value), 8, 320);
+  activeText.size = clampNumber(Number(textSizeInput.value), 8);
 
   if (activeText.type !== "emoji") {
     activeText.fontFamily = textFontFamilyInput.value || "'Space Mono', monospace";
@@ -1671,7 +1671,7 @@ function addOrUpdateTextOverlay() {
   }
 
   const fontFamily = textFontFamilyInput.value || "'Space Mono', monospace";
-  const size = clampNumber(Number(textSizeInput.value), 8, 320);
+  const size = clampNumber(Number(textSizeInput.value), 8);
   const color = textColorInput.value || "#111111";
   const fontWeight = textFontWeightInput?.value || "400";
   const fontStyle = textFontStyleInput?.value || "normal";
@@ -1722,7 +1722,7 @@ function addEmojiOverlay() {
     return;
   }
 
-  const size = clampNumber(Number(textSizeInput.value), 8, 320);
+  const size = clampNumber(Number(textSizeInput.value), 8);
   const overlay = {
     id: `emoji-${Date.now()}`,
     text: emoji,
@@ -4045,7 +4045,7 @@ function renderTextLayerList() {
   ];
 
   if (!visibleLayers.length) {
-    textLayerList.innerHTML = '<p class="text-layer-empty">No text or emoji layers yet.</p>';
+    textLayerList.innerHTML = '<p class="text-layer-empty">No text layers yet.</p>';
     return;
   }
 
@@ -4133,7 +4133,7 @@ function addOrUpdateTextOverlay() {
   }
 
   const fontFamily = textFontFamilyInput.value || "'Space Mono', monospace";
-  const size = clampNumber(Number(textSizeInput.value), 8, 320);
+  const size = clampNumber(Number(textSizeInput.value), 8);
   const color = textColorInput.value || "#111111";
   const fontWeight = textFontWeightInput?.value || "400";
   const fontStyle = textFontStyleInput?.value || "normal";
@@ -4184,7 +4184,7 @@ function addEmojiOverlay() {
     return;
   }
 
-  const size = clampNumber(Number(textSizeInput.value), 8, 320);
+  const size = clampNumber(Number(textSizeInput.value), 8);
   const overlay = {
     id: `emoji-${Date.now()}`,
     text: emoji,
