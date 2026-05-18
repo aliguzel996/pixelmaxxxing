@@ -101,6 +101,7 @@ const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 8;
 const ZOOM_STEP = 1.2;
 const DRAG_THRESHOLD = 8;
+const SELECTION_FRAME_MARGIN = 32;
 const MAX_SELECTION_HISTORY = 80;
 const MAX_APP_HISTORY = 20;
 const DEFAULT_TEXT_SIZE = 72;
@@ -735,8 +736,21 @@ previewCanvas.addEventListener("mousemove", (event) => {
   requestPreviewRender();
 });
 
-previewCanvas.addEventListener("mousedown", (event) => {
+const canvasPointerSurface = canvasFrame || previewCanvas;
+
+canvasPointerSurface.addEventListener("mousedown", (event) => {
   if (event.button !== 0 || (!state.mosaicTiles.length && !state.image)) {
+    return;
+  }
+
+  const isInsideCanvas = isEventInsidePreviewCanvas(event);
+
+  if (!isInsideCanvas) {
+    if (state.interactionMode !== "select" || !state.mosaicTiles.length || !isEventWithinCanvasSelectionMargin(event)) {
+      return;
+    }
+
+    beginCanvasSelectionDrag(event);
     return;
   }
 
@@ -2288,13 +2302,13 @@ function updateSelectionUi() {
 
   if (!state.mosaicTiles.length) {
     selectionStatus.textContent =
-      "No tile selection yet. Click one tile, Shift-click to add more, or drag to scan an area.";
+      "No tile selection yet. Click one tile, Ctrl-click to add, Alt-click to remove, or drag to scan an area.";
     return;
   }
 
   if (!selectedCount) {
     selectionStatus.textContent =
-      "Click once to select one tile. Shift-click adds or removes tiles. Dragging scans tiles similar to the dominant tone in the area.";
+      "Click once to select one tile. Ctrl-click adds tiles, Alt-click removes tiles, and dragging scans the area tone.";
     return;
   }
 
@@ -2522,8 +2536,14 @@ function updateHoverInfo() {
       state.dragSelection.currentY
     );
     const areaTileCount = getTileIndicesInRect(rect).length;
-    hoverInfo.textContent =
-      `Scanning the area. The dominant tone among ${formatCount(areaTileCount)} tiles will be used to select similar tiles.`;
+    if (state.dragSelection.altKey) {
+      hoverInfo.textContent = `Alt will remove ${formatCount(areaTileCount)} tiles from the selection.`;
+    } else if (state.dragSelection.ctrlKey) {
+      hoverInfo.textContent = `Ctrl will add ${formatCount(areaTileCount)} tiles to the selection.`;
+    } else {
+      hoverInfo.textContent =
+        `Scanning the area. The dominant tone among ${formatCount(areaTileCount)} tiles will be used to select similar tiles.`;
+    }
     return;
   }
 
@@ -2893,6 +2913,7 @@ function beginCanvasSelectionDrag(event) {
     active: true,
     moved: false,
     shiftKey: event.shiftKey,
+    ctrlKey: event.ctrlKey,
     altKey: event.altKey,
     startTileIndex,
     startX: point.x,
@@ -2927,6 +2948,7 @@ function endCanvasSelectionDrag(event) {
   if (!interaction.moved) {
     handleCanvasTileSelection(interaction.startTileIndex, {
       additive: interaction.shiftKey,
+      forceAdditive: interaction.ctrlKey,
       subtractive: interaction.altKey
     });
     return;
@@ -2940,6 +2962,7 @@ function endCanvasSelectionDrag(event) {
   );
   handleCanvasAreaSelection(rect, {
     additive: interaction.shiftKey,
+    forceAdditive: interaction.ctrlKey,
     subtractive: interaction.altKey
   });
 }
@@ -2987,11 +3010,14 @@ function handleCanvasTileSelection(tileIndex, options = {}) {
   pushSelectionHistory();
   const tile = state.mosaicTiles[tileIndex];
   const additive = Boolean(options.additive);
+  const forceAdditive = Boolean(options.forceAdditive);
   const subtractive = Boolean(options.subtractive);
-  const nextSelected = additive || subtractive ? new Set(state.selectedTileIndices) : new Set();
+  const nextSelected = additive || forceAdditive || subtractive ? new Set(state.selectedTileIndices) : new Set();
 
   if (subtractive) {
     nextSelected.delete(tileIndex);
+  } else if (forceAdditive) {
+    nextSelected.add(tileIndex);
   } else if (additive && nextSelected.has(tileIndex)) {
     nextSelected.delete(tileIndex);
   } else {
@@ -3016,7 +3042,7 @@ function handleCanvasTileSelection(tileIndex, options = {}) {
   invalidateRenderCache();
   requestPreviewRender();
   paletteSummary.textContent =
-    additive
+    additive || forceAdditive
       ? `${formatCount(nextSelected.size)} tiles selected. You can expand this with similar tiles.`
       : `${rgbToHex(tile.color.r, tile.color.g, tile.color.b)} tile selected.`;
 }
@@ -3024,6 +3050,7 @@ function handleCanvasTileSelection(tileIndex, options = {}) {
 function handleCanvasAreaSelection(rect, options = {}) {
   const areaTileIndices = getTileIndicesInRect(rect);
   const additive = Boolean(options.additive);
+  const forceAdditive = Boolean(options.forceAdditive);
   const subtractive = Boolean(options.subtractive);
   pushSelectionHistory();
 
@@ -3054,6 +3081,29 @@ function handleCanvasAreaSelection(rect, options = {}) {
     invalidateRenderCache();
     requestPreviewRender();
     paletteSummary.textContent = `Alt removed ${formatCount(areaTileIndices.length)} tiles from the selection.`;
+    return;
+  }
+
+  if (forceAdditive) {
+    const nextSelected = new Set(state.selectedTileIndices);
+    areaTileIndices.forEach((tileIndex) => {
+      nextSelected.add(tileIndex);
+    });
+
+    const dominantColor = getDominantColorFromTileIndices(Array.from(nextSelected));
+    if (dominantColor) {
+      focusColorInPalette(dominantColor, { rerender: false });
+    }
+
+    enableSelectionPreviewFromSelectionAction();
+    setSelectedTileIndices(Array.from(nextSelected), {
+      mode: "manual",
+      referenceColor: dominantColor
+    });
+    renderPalette();
+    invalidateRenderCache();
+    requestPreviewRender();
+    paletteSummary.textContent = `Ctrl added ${formatCount(areaTileIndices.length)} tiles to the selection.`;
     return;
   }
 
@@ -3264,6 +3314,26 @@ function getNormalizedRect(startX, startY, endX, endY) {
     width: Math.abs(endX - startX),
     height: Math.abs(endY - startY)
   };
+}
+
+function isEventInsidePreviewCanvas(event) {
+  const rect = previewCanvas.getBoundingClientRect();
+  return (
+    event.clientX >= rect.left &&
+    event.clientX <= rect.right &&
+    event.clientY >= rect.top &&
+    event.clientY <= rect.bottom
+  );
+}
+
+function isEventWithinCanvasSelectionMargin(event) {
+  const rect = previewCanvas.getBoundingClientRect();
+  return (
+    event.clientX >= rect.left - SELECTION_FRAME_MARGIN &&
+    event.clientX <= rect.right + SELECTION_FRAME_MARGIN &&
+    event.clientY >= rect.top - SELECTION_FRAME_MARGIN &&
+    event.clientY <= rect.bottom + SELECTION_FRAME_MARGIN
+  );
 }
 
 function getCanvasPointFromEvent(event) {
@@ -4599,7 +4669,13 @@ function updateHoverInfo() {
       state.dragSelection.currentY
     );
     const areaTileCount = getTileIndicesInRect(rect).length;
-    hoverInfo.textContent = `Scanning area. ${formatCount(areaTileCount)} tiles are inside the current box.`;
+    if (state.dragSelection.altKey) {
+      hoverInfo.textContent = `Alt will remove ${formatCount(areaTileCount)} tiles from the selection.`;
+    } else if (state.dragSelection.ctrlKey) {
+      hoverInfo.textContent = `Ctrl will add ${formatCount(areaTileCount)} tiles to the selection.`;
+    } else {
+      hoverInfo.textContent = `Scanning area. ${formatCount(areaTileCount)} tiles are inside the current box.`;
+    }
     return;
   }
 
